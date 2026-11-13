@@ -43,3 +43,44 @@ ChatWS es una aplicación de chat en tiempo real que permite a múltiples usuari
 5. **Broadcast:** El mensaje se reenvía a todos los suscriptores de `/topic/public`
 6. **Recepción:** Todos los clientes conectados reciben el mensaje simultáneamente
 
+
+---
+
+## 🐇 Migración a RabbitMQ
+
+El broker en memoria (`enableSimpleBroker`) se reemplazó por un **STOMP broker relay** hacia RabbitMQ (`enableStompBrokerRelay` en `WebSocketConfig.java`).
+
+### Cambios realizados
+
+1. **pom.xml:** se agregó `spring-boot-starter-amqp` (y `reactor-netty`, que es el cliente TCP que usa el relay para hablar con RabbitMQ).
+2. **WebSocketConfig.java:** `enableSimpleBroker(TOPIC, "/queue")` → `enableStompBrokerRelay(TOPIC, "/queue").setRelayHost("localhost").setRelayPort(61613)`.
+3. **application.yaml:** configuración `spring.rabbitmq` (host, puerto 5672, usuario y contraseña `guest`).
+4. **RabbitMQ:** se levanta con Docker (`docker-compose.yml`) habilitando el plugin `rabbitmq_stomp`.
+
+### Ventajas frente al broker en memoria
+
+- **Escalabilidad horizontal:** varias instancias de la app comparten los mensajes.
+- **Persistencia:** los mensajes no se pierden si se cae el servidor de la app.
+- **Alta concurrencia:** mejor rendimiento con muchos usuarios.
+- **Features avanzadas:** DLQ, TTL, routing keys, etc.
+
+### Cómo levantarlo
+
+1. Levantar RabbitMQ con el plugin STOMP (requiere Docker):
+   ```bash
+   docker compose up -d
+   ```
+   Panel de administración: http://localhost:15672 (usuario `guest`, contraseña `guest`).
+2. Levantar la app:
+   ```bash
+   ./mvnw spring-boot:run
+   ```
+3. Abrir http://localhost:8080 en dos pestañas y chatear.
+
+### Puertos
+
+| Puerto | Uso |
+|--------|-----|
+| 5672   | AMQP (`spring-boot-starter-amqp`) |
+| 61613  | STOMP, usado por el relay de Spring |
+| 15672  | Panel web de RabbitMQ |

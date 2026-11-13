@@ -2,12 +2,33 @@ let stompClient = null;
 
 function connect() {
     const serverIp = document.getElementById('serverIp').value;
-    
-//conexion y subcripcion
+
+    // Si ya había una conexión abierta, la cerramos para no suscribirnos dos veces
+    if (stompClient !== null) {
+        stompClient.disconnect();
+        stompClient = null;
+    }
+
+    const socket = new SockJS('http://' + serverIp + ':8080/chat');
+    stompClient = Stomp.over(socket);
+
+    stompClient.connect({}, function (frame) {
+        setConnected(true);
+        console.log('Connected: ' + frame);
+        stompClient.subscribe('/topic/public', function (message) {
+            showMessage(JSON.parse(message.body));
+        });
+    }, function (error) {
+        console.error('Error de conexion: ' + error);
+        setConnected(false);
+    });
 }
 
 function disconnect() {
-    // Desconectar
+    if (stompClient !== null) {
+        stompClient.disconnect();
+        stompClient = null;
+    }
     setConnected(false);
     console.log("Disconnected");
 }
@@ -30,8 +51,13 @@ function sendMessage() {
     
     if (content.trim() === '') return;
     
-     // Conexion
-    
+    if (stompClient === null || !stompClient.connected) return;
+
+    stompClient.send('/app/chat.sendMessage', {}, JSON.stringify({
+        usuario: username,
+        contenido: content
+    }));
+
     document.getElementById('message').value = '';
 }
 
@@ -39,7 +65,10 @@ function showMessage(message) {
     const messages = document.getElementById('messages');
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message';
-    messageDiv.innerHTML = '<strong>' + message.usuario + ':</strong> ' + message.contenido;
+    const user = document.createElement('strong');
+    user.textContent = message.usuario + ': ';
+    messageDiv.appendChild(user);
+    messageDiv.appendChild(document.createTextNode(message.contenido));
     messages.appendChild(messageDiv);
     messages.scrollTop = messages.scrollHeight;
 }
